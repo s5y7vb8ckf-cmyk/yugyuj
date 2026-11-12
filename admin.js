@@ -1,12 +1,13 @@
 'use strict';
 /* MILO administration uses its own server-issued admin session. Never accept cashier credentials. */
-const DEFAULT_API='https://script.google.com/macros/s/AKfycbzZHJ5DDaaz71ZayOQA49BFSx-EwoDduMkdJt2Yz5rDsTmVJI1WevKMP6cpzvk5IKe_/exec';
+const DEFAULT_API='https://script.google.com/macros/s/AKfycbzubJHFMdH9WahGc82YMCybjJJbVLj9EY-CEm21h6TJGVC63HBsw1b2gZh79XRS-eQf/exec';
 // The admin endpoint can be tested and updated independently without editing code.
 const storedApiUrl=localStorage.getItem('milo_admin_api_url');
 // The operator provided this deployment URL. Drop stale URL values from prior builds.
 // A different URL can still be entered using the diagnostic connection settings.
+const PREVIOUS_API_URL='https://script.google.com/macros/s/AKfycbzZHJ5DDaaz71ZayOQA49BFSx-EwoDduMkdJt2Yz5rDsTmVJI1WevKMP6cpzvk5IKe_/exec';
 const LEGACY_API_URL='https://script.google.com/macros/s/AKfycby2xxFE1xFBdBVCH0E2tJs8BWwr7Kuxb0rrA5JaJULwrvVMwsxWIe-NuoV0wkZLyTgc/exec';
-let API=(!storedApiUrl||storedApiUrl===LEGACY_API_URL)?DEFAULT_API:storedApiUrl;
+let API=(!storedApiUrl||storedApiUrl===LEGACY_API_URL||storedApiUrl===PREVIOUS_API_URL)?DEFAULT_API:storedApiUrl;
 if(API===DEFAULT_API)localStorage.setItem('milo_admin_api_url',DEFAULT_API);
 const isValidApiUrl=url=>/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?[^#]*)?$/.test(String(url||'').trim());
 function applyApiUrl(){
