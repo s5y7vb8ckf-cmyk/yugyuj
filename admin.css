@@ -10,3 +10,12 @@
 .device-card .line-row{font-size:12px;gap:15px}.device-card .line-row strong{font-size:11px;overflow-wrap:anywhere;text-align:left}
 .device-card .primary.full{margin-top:16px;width:100%}
 @media print{.side,.topbar,.shade,.pageintro .actions,.toolbar,.main footer,.global-msg,button{display:none!important}.app,.main,.content{display:block!important;padding:0!important;margin:0!important;width:100%!important}.panel{break-inside:avoid;box-shadow:none!important}body{background:#fff!important}.stat-grid{break-inside:avoid}.content{padding:0!important}}
+
+/* Admin API diagnostic (collapsed unless needed) */
+.milo-api-help{margin-top:16px;border:1px solid #d8e1e5;border-radius:12px;padding:12px;background:#f8fafb;line-height:1.7;color:#233c4a}
+.milo-api-help summary{font-weight:800;cursor:pointer;font-size:13px}
+.milo-api-help p{font-size:12px;line-height:1.7;margin:10px 0}
+.milo-api-help label{display:block;font-size:12px;font-weight:700}
+.milo-api-help input{box-sizing:border-box;width:100%;border:1px solid #bfccd5;border-radius:8px;padding:10px;font-size:12px;text-align:left;direction:ltr}
+.milo-api-help button{margin-top:10px}
+.milo-api-status{font-size:12px;font-weight:700;margin-top:10px;overflow-wrap:anywhere}

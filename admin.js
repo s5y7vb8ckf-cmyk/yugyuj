@@ -1,6 +1,20 @@
 'use strict';
 /* MILO administration uses its own server-issued admin session. Never accept cashier credentials. */
-const API='https://script.google.com/macros/s/AKfycby2xxFE1xFBdBVCH0E2tJs8BWwr7Kuxb0rrA5JaJULwrvVMwsxWIe-NuoV0wkZLyTgc/exec';
+const DEFAULT_API='https://script.google.com/macros/s/AKfycbzZHJ5DDaaz71ZayOQA49BFSx-EwoDduMkdJt2Yz5rDsTmVJI1WevKMP6cpzvk5IKe_/exec';
+// The admin endpoint can be tested and updated independently without editing code.
+const storedApiUrl=localStorage.getItem('milo_admin_api_url');
+// The operator provided this deployment URL. Drop stale URL values from prior builds.
+// A different URL can still be entered using the diagnostic connection settings.
+const LEGACY_API_URL='https://script.google.com/macros/s/AKfycby2xxFE1xFBdBVCH0E2tJs8BWwr7Kuxb0rrA5JaJULwrvVMwsxWIe-NuoV0wkZLyTgc/exec';
+let API=(!storedApiUrl||storedApiUrl===LEGACY_API_URL)?DEFAULT_API:storedApiUrl;
+if(API===DEFAULT_API)localStorage.setItem('milo_admin_api_url',DEFAULT_API);
+const isValidApiUrl=url=>/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec(?:\?[^#]*)?$/.test(String(url||'').trim());
+function applyApiUrl(){
+ const el=document.getElementById('adminApiUrl');const url=String(el?.value||'').trim();
+ if(!isValidApiUrl(url))throw Error('أدخل رابط نشر Google Apps Script الصحيح المنتهي بـ /exec');
+ API=url;localStorage.setItem('milo_admin_api_url',url);return url;
+}
+
 const $=s=>document.getElementById(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=v=>Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const dateLabel=v=>{try{return new Date(v).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'})}catch{return String(v||'')}};
@@ -29,10 +43,34 @@ async function api(action,data={}){
   const response=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},credentials:'omit',redirect:'follow',body:JSON.stringify({action,token:state.token,...data})});
   if(!response.ok)throw Error('تعذر الاتصال بالخادم');
   let out;try{out=await response.json()}catch(_){throw Error('تعذر قراءة استجابة قاعدة البيانات. تأكد من نشر أحدث نسخة للسكربت.');}
-  if(!out.ok){if(out.error==='admin_unauthorized')showLogin();throw Error(out.message||'حدث خطأ');}
+  if(!out.ok){
+   if(out.error==='admin_unauthorized')showLogin();
+   if(out.error==='bad_request'&&/طلب غير معروف|عملية إدارية غير معروفة/.test(String(out.message||'')))
+    throw Error('رابط Google Apps Script لا يدعم هذا الأمر. غالبًا النشر قديم أو الرابط يشير لمشروع آخر. افتح فحص الربط من صفحة الدخول، ثم اختر إصدار جديد عند النشر.');
+   throw Error(out.message||'حدث خطأ');
+  }
   if(status){status.textContent='متصل بقاعدة الكاشير';status.className='online';}
   return out;
  }catch(err){if(status){status.textContent='الاتصال غير مؤكد';status.className='offline';}throw err;}
+}
+async function testAdminConnection(){
+ const result=document.getElementById('adminApiStatus');
+ const button=document.getElementById('testAdminApi');
+ if(result){result.textContent='جارٍ فحص رابط المشروع...';result.style.color='#304b63';}
+ if(button)button.disabled=true;
+ try{
+  const url=applyApiUrl();
+  const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},credentials:'omit',redirect:'follow',body:JSON.stringify({action:'adminVersion'})});
+  if(!response.ok)throw Error('استجابة الخادم HTTP '+response.status);
+  let data;try{data=await response.json()}catch(e){throw Error('الرد غير قابل للقراءة. تأكد من رابط /exec وصلاحيات النشر.');}
+  if(data.ok&&data.service==='MILO_ADMIN'){
+   result.textContent='✓ اتصال ناجح بالإدارة — الإصدار '+String(data.version||'');result.style.color='#13745e';return;
+  }
+  if(data.message==='طلب غير معروف'||data.error==='bad_request')
+   throw Error('الرابط يشير إلى إصدار قديم لا يتضمن أوامر الإدارة. انشر Code.gs المحدّث + AdminBackend.gs كإصدار جديد، أو الصق رابط النشر الصحيح.');
+  throw Error(data.message||'الخادم لا يؤكد تشغيل واجهة الإدارة الجديدة.');
+ }catch(err){if(result){result.textContent='✕ '+err.message;result.style.color='#b33b40';}}
+ finally{if(button)button.disabled=false;}
 }
 function showLogin(){state.token='';$('app').classList.add('hide');$('login').classList.remove('hide');$('password').value='';}
 function showApp(){ $('login').classList.add('hide');$('app').classList.remove('hide');$('storeName').textContent=state.name||'المتجر';$('adminUser').textContent=state.user;drawNav();go('dashboard');}
@@ -116,9 +154,14 @@ async function openDeviceReport(code){
 
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-device-report'))openDeviceReport(b.dataset.deviceReport);if(b.dataset.page)go(b.dataset.page);if(b.dataset.go)go(b.dataset.go);if(b.hasAttribute('data-edit-product'))productForm(state.items.find(x=>x.barcode===b.dataset.editProduct));if(b.hasAttribute('data-edit-record'))recordForm(state.type,state.items.find(x=>String(x[recordConfig[state.type].id])===b.dataset.editRecord));if(b.dataset.close)closeModal();});
 document.addEventListener('change',async e=>{const el=e.target;if(!el.matches('[data-order-id]')||!el.value)return;const before=state.items.find(x=>x.orderId===el.dataset.orderId);if(el.value==='مكتمل')return msg('إتمام الطلب وإصدار فاتورته من شاشة الكاشير فقط',true);if(before?.invoiceId)return msg('الطلب لديه فاتورة ولا يمكن تغيير حالته',true);try{el.disabled=true;await api('adminOrderStatus',{orderId:el.dataset.orderId,status:el.value});msg('تم تحديث حالة الطلب');await go('orders');}catch(err){el.disabled=false;msg(err.message,true)}});
-$('loginForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;const username=$('username').value.trim(),password=$('password').value;try{busy(true);authError('');const r=await api('adminLogin',{username,password});state.token=r.token;state.store=r.storeCode;state.user=r.username;state.name=r.storeName;$('password').value='';showApp();}catch(err){authError(err.message)}finally{busy(false)}};
+$('loginForm').onsubmit=async e=>{e.preventDefault();if(state.busy)return;try{applyApiUrl();}catch(err){authError(err.message);return;}const username=$('username').value.trim(),password=$('password').value;try{busy(true);authError('');const r=await api('adminLogin',{username,password});state.token=r.token;state.store=r.storeCode;state.user=r.username;state.name=r.storeName;$('password').value='';showApp();}catch(err){authError(err.message)}finally{busy(false)}};
 $('showPassword').onclick=()=>{$('password').type=$('password').type==='password'?'text':'password';};
 $('menu').onclick=()=>{document.querySelector('.side').classList.add('open');$('shade').classList.remove('hide')};$('shade').onclick=closeNav;
 $('refresh').onclick=()=>go(state.page);$('closeModal').onclick=closeModal;
 $('logout').onclick=async()=>{try{await api('adminLogout')}catch(_){}showLogin();};
 // No persistent token in localStorage or URL. Closing or refreshing the page requires a new sign-in.
+
+// Diagnostic link test is separate from login; it never submits a password.
+document.getElementById('testAdminApi')?.addEventListener('click',testAdminConnection);
+const miloAdminApiInput=document.getElementById('adminApiUrl');
+if(miloAdminApiInput)miloAdminApiInput.value=API;
